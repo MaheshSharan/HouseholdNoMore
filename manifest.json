@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Netflix Household No more",
-  "version": "1.5",
+  "name": "Netflix Household Bypass",
+  "version": "1.6",
   "description": "Blocks GraphQL on /watch, hides modal on /browse.",
   "permissions": [
     "declarativeNetRequest",
     "tabs",
     "webNavigation",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "*://*.netflix.com/*"
@@ -15,6 +16,14 @@
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "icons": {
     "16": "icons/icon16.png",
