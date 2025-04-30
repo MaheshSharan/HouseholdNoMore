@@ -44,6 +44,8 @@ As this extension is not published on official stores, you need to load it manua
 
 ## Caveats & Known Issues
 
+*   **Netflix Video player UI is not visible:** If u dont see the video player UI, just refresh the page. that should fix it for you.
+
 *   **Netflix Updates:** Netflix frequently updates its website and internal APIs. Any changes to the GraphQL endpoint URL, the request structure, the page structure (`/watch/` path), or the modal's CSS selectors/HTML structure could break this extension partially or completely.
 *   **Console Errors:** When on a `/watch/` page, you **will** see network errors (often CORS-related) in the browser's developer console. This is an expected side effect of the extension successfully blocking the network request. While visually noisy, it generally does not impact performance.
 *   **Fragile css:** The modal hiding relies on specific CSS class names and `data-uia` attributes. These might change without notice.
