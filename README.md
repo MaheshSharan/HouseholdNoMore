@@ -1,4 +1,15 @@
+
 # Netflix Household No More 🚫
+
+## 🚨 This is an updated version of a previous extension!
+
+This project is a **major update and continuation** of the original [Netflix Household No More](https://github.com/Amachi/NetflixHouseholdNoMore) extension by [Amachi](https://github.com/Amachi). All credit for the original concept and implementation goes to them. This repository builds upon their work, adding new features, improved reliability, and ongoing maintenance.
+
+**If you are looking for the original repo, visit:**
+> https://github.com/Amachi/NetflixHouseholdNoMore
+
+**This version is NOT affiliated with the original author, but aims to keep the project alive and working as Netflix changes its site.**
+
 
 A browser extension aiming to bypass the Netflix household verification prompts by employing different strategies depending on the page context.
 
@@ -6,11 +17,16 @@ A browser extension aiming to bypass the Netflix household verification prompts 
 
 ---
 
+
 ## Features
 
-*   **Blocks Verification Request on `/watch`:** Prevents the specific GraphQL network request associated with the household check from running when you are on a video watching page (`/watch/`).
+*   **Extensive GraphQL Request Blocking:**
+    *   On `/watch` pages, the extension **aggressively blocks all GraphQL network requests** related to Netflix's household verification. This is done at the network level, so you can verify in the browser's Network tab that these requests are stopped before reaching Netflix servers.
+    *   This is the core feature and is maintained to adapt to Netflix's frequent backend changes.
 *   **Hides Verification Modal on `/browse` (and others):** On pages *other* than `/watch/` (like the main browse page), it hides the household verification modal popup if it appears.
 *   **Target:** Only affects `netflix.com` domains.
+
+---
 
 
 ---
@@ -48,21 +64,24 @@ As this extension is not published yet on chrome store, you need to load it manu
 
 ---
 
+
 ## Caveats & Known Issues
 
-*   **Netflix Video player UI is not visible:** If u dont see the video player UI, just refresh the page. that should fix it for you.
+*   **Netflix Video player UI is not visible:** If you don't see the video player UI, just refresh the page. That should fix it for you.
 
-*   **Netflix Updates:** Netflix frequently updates its website and internal APIs. Any changes to the GraphQL endpoint URL, the request structure, the page structure (`/watch/` path), or the modal's CSS selectors/HTML structure could break this extension partially or completely.
-*   **Console Errors:** When on a `/watch/` page, you **will** see network errors (often CORS-related) in the browser's developer console. This is an expected side effect of the extension successfully blocking the network request. While visually noisy, it generally does not impact performance.
-*   **Fragile css:** The modal hiding relies on specific CSS class names and `data-uia` attributes. These might change without notice.
+*   **Netflix Updates:** Netflix frequently updates its website and internal APIs. Any changes to the GraphQL endpoint URL, the request structure, the page structure (`/watch/` path), or the modal's CSS selectors/HTML structure could break this extension partially or completely. **We monitor and update the GraphQL blocking logic as needed.**
+*   **Console Errors:** When on a `/watch/` page, you **will** see network errors (often CORS-related) in the browser's developer console. This is an expected side effect of the extension successfully blocking the GraphQL network requests. While visually noisy, it generally does not impact performance.
+*   **Fragile CSS:** The modal hiding relies on specific CSS class names and `data-uia` attributes. These might change without notice.
 
 ---
+
 
 ## Disclaimer
 
 *   This extension is not endorsed by or affiliated with Netflix in any way.
 *   Use this extension at your own risk. The developers assume no liability.
 *   Modifying network requests or the DOM on third-party websites might violate their Terms of Service. Be aware of the potential consequences.
+*   This repository is a **community update** of the original [Amachi/NetflixHouseholdNoMore](https://github.com/Amachi/NetflixHouseholdNoMore) extension. Please respect the original author's work and license.
 
 ---
 

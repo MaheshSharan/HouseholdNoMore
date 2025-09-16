@@ -1,7 +1,7 @@
 // Netflix Household Bypass - Background Script (v1.6 - Production)
 
-const RULE_ID = 1;
 const GRAPHQL_URL = "*://web.prod.cloud.netflix.com/graphql*";
+const GRAPHQL_BASE_URL = "web.prod.cloud.netflix.com";
 const WATCH_PATH = '/watch/';
 const CONTENT_SCRIPT_FILE = 'content.js';
 const STORAGE_KEY = 'extensionEnabled';
@@ -9,17 +9,84 @@ const STORAGE_KEY = 'extensionEnabled';
 // Global state variable
 let isExtensionEnabled = true; // Default to enabled
 
-// Base rule definition for network blocking (used for /watch/)
-const blockRuleBase = {
-  id: RULE_ID,
-  priority: 1,
-  action: { type: 'block' },
-  condition: {
-    urlFilter: GRAPHQL_URL,
-    resourceTypes: ['xmlhttprequest']
-    // tabIds condition added dynamically for session rules
-  }
-};
+// Rule ID management - Map to track which rule ID belongs to which tab
+const tabToRuleIdMap = new Map();
+let nextRuleId = 1;
+
+// Function to get or create unique rule IDs for a tab (now returns array for multiple rules)
+function getRuleIdsForTab(tabId) {
+    const baseKey = `tab_${tabId}`;
+    const ruleIds = [];
+    
+    // We now need 3 rules per tab instead of many
+    for (let i = 0; i < 3; i++) {
+        const key = `${baseKey}_${i}`;
+        if (tabToRuleIdMap.has(key)) {
+            ruleIds.push(tabToRuleIdMap.get(key));
+        } else {
+            const ruleId = nextRuleId++;
+            tabToRuleIdMap.set(key, ruleId);
+            ruleIds.push(ruleId);
+        }
+    }
+    
+    return ruleIds;
+}
+
+// Function to remove rule ID mappings when tab is closed
+function removeRuleIdsForTab(tabId) {
+    const baseKey = `tab_${tabId}`;
+    for (let i = 0; i < 3; i++) {
+        const key = `${baseKey}_${i}`;
+        tabToRuleIdMap.delete(key);
+    }
+}
+
+// Create comprehensive blocking rules for a tab
+function createBlockRules(tabId) {
+    const ruleIds = getRuleIdsForTab(tabId);
+    const rules = [];
+    
+    // Rule 1: Block ALL POST requests to GraphQL endpoint (most aggressive)
+    rules.push({
+        id: ruleIds[0],
+        priority: 10, // Highest priority
+        action: { type: 'block' },
+        condition: {
+            urlFilter: GRAPHQL_URL,
+            resourceTypes: ['xmlhttprequest'],
+            requestMethods: ['post'],
+            tabIds: [tabId]
+        }
+    });
+    
+    // Rule 2: Block ALL requests to GraphQL endpoint (backup)
+    rules.push({
+        id: ruleIds[1],
+        priority: 9,
+        action: { type: 'block' },
+        condition: {
+            urlFilter: GRAPHQL_URL,
+            resourceTypes: ['xmlhttprequest'],
+            tabIds: [tabId]
+        }
+    });
+    
+    // Rule 3: Block by domain and method (additional coverage)
+    rules.push({
+        id: ruleIds[2],
+        priority: 8,
+        action: { type: 'block' },
+        condition: {
+            domains: [GRAPHQL_BASE_URL],
+            resourceTypes: ['xmlhttprequest'],
+            requestMethods: ['post'],
+            tabIds: [tabId]
+        }
+    });
+    
+    return rules;
+}
 
 // --- Utility Functions ---
 
@@ -53,8 +120,14 @@ async function removeAllRules() {
             console.log('[Cleanup] Removing all session rules:', ruleIdsToRemove);
             await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIdsToRemove });
         }
+        
+        // Clear all tab-to-rule mappings
+        tabToRuleIdMap.clear();
+        console.log('[Cleanup] Cleared all tab-to-rule mappings');
     } catch (error) {
         console.error("[Cleanup] Error removing all rules:", error);
+        // Clear mappings even on error to prevent stale data
+        tabToRuleIdMap.clear();
     }
 }
 
@@ -62,23 +135,23 @@ async function removeAllRules() {
 
 async function addBlockRuleForTab(tabId) {
     if (!isExtensionEnabled) return; // Do nothing if disabled
-    // console.log(`[Network Rule] Attempting ADD for tab ${tabId}`);
+    console.log(`[Network Rule] Attempting ADD comprehensive blocking for tab ${tabId}`);
     try {
+        const ruleIds = getRuleIdsForTab(tabId);
         const currentRules = await chrome.declarativeNetRequest.getSessionRules();
-        const ruleExistsForTab = currentRules.some(rule =>
-            rule.id === RULE_ID && rule.condition.tabIds?.includes(tabId)
-        );
-        if (!ruleExistsForTab) {
-            // console.log(`[Network Rule] Adding for tab ${tabId}.`);
+        const existingRuleIds = new Set(currentRules.map(rule => rule.id));
+        
+        // Only add rules that don't already exist
+        const newRules = createBlockRules(tabId).filter(rule => !existingRuleIds.has(rule.id));
+        
+        if (newRules.length > 0) {
+            console.log(`[Network Rule] Adding ${newRules.length} blocking rules for tab ${tabId}:`, newRules.map(r => r.id));
             await chrome.declarativeNetRequest.updateSessionRules({
-                addRules: [{
-                    ...blockRuleBase,
-                    condition: { ...blockRuleBase.condition, tabIds: [tabId] }
-                }],
+                addRules: newRules,
                 removeRuleIds: []
             });
         } else {
-            // console.log(`[Network Rule] Already exists for tab ${tabId}.`);
+            console.log(`[Network Rule] All blocking rules already exist for tab ${tabId}`);
         }
     } catch (error) {
         console.error(`[Network Rule] ADD Error for tab ${tabId}:`, error.message);
@@ -87,22 +160,39 @@ async function addBlockRuleForTab(tabId) {
 
 async function removeBlockRuleForTab(tabId) {
     // Always attempt removal, even if extension is being disabled
-    // console.log(`[Network Rule] Attempting REMOVE for tab ${tabId}`);
+    console.log(`[Network Rule] Attempting REMOVE all blocking rules for tab ${tabId}`);
     try {
-        const currentRules = await chrome.declarativeNetRequest.getSessionRules();
-        const ruleToRemove = currentRules.find(rule =>
-            rule.id === RULE_ID && rule.condition.tabIds?.includes(tabId)
-        );
-        if (ruleToRemove && ruleToRemove.condition.tabIds.length === 1 && ruleToRemove.condition.tabIds[0] === tabId) {
-            // console.log(`[Network Rule] Removing rule ${RULE_ID} for tab ${tabId}.`);
-            await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID] });
-        } else if (ruleToRemove) {
-            // console.log(`[Network Rule] Rule ${RULE_ID} targets other tabs. Not removing for tab ${tabId}.`);
-        } else {
-             // console.log(`[Network Rule] No specific rule found to remove for tab ${tabId}.`);
+        const baseKey = `tab_${tabId}`;
+        const ruleIdsToRemove = [];
+        
+        // Collect all rule IDs for this tab (3 rules per tab)
+        for (let i = 0; i < 3; i++) {
+            const key = `${baseKey}_${i}`;
+            if (tabToRuleIdMap.has(key)) {
+                ruleIdsToRemove.push(tabToRuleIdMap.get(key));
+            }
         }
+        
+        if (ruleIdsToRemove.length > 0) {
+            const currentRules = await chrome.declarativeNetRequest.getSessionRules();
+            const existingRuleIds = ruleIdsToRemove.filter(id => 
+                currentRules.some(rule => rule.id === id)
+            );
+            
+            if (existingRuleIds.length > 0) {
+                console.log(`[Network Rule] Removing ${existingRuleIds.length} rules for tab ${tabId}:`, existingRuleIds);
+                await chrome.declarativeNetRequest.updateSessionRules({ 
+                    removeRuleIds: existingRuleIds 
+                });
+            }
+        }
+        
+        // Clean up all mappings for this tab
+        removeRuleIdsForTab(tabId);
     } catch (error) {
         console.error(`[Network Rule] REMOVE Error for tab ${tabId}:`, error.message);
+        // Clean up mappings even on error
+        removeRuleIdsForTab(tabId);
     }
 }
 
